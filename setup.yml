@@ -1,0 +1,350 @@
+---
+- name: Deploy laravel application
+  hosts: all
+  remote_user: root
+  
+
+
+  tasks:
+
+  - name: Install packages
+    apt:
+      update_cache: yes
+      state: latest
+      force_apt_get: yes
+
+  - name: Install ufw firewall
+    apt:
+      name: ufw
+      update_cache: yes
+      state: latest
+
+  - name: Allow HTTP
+    ufw:
+      rule: allow
+      port: "{{ http_port }}"
+      proto: tcp
+    notify:
+    - reload ufw
+
+
+  - name: Allow OpenSSH  
+    ufw:
+      rule: allow 
+      name: OpenSSH
+    notify:
+    - reload ufw
+
+  - name: Allow SSH
+    ufw:
+      rule: allow
+      port: "{{ ssh_port }}"
+      proto: tcp
+    notify:
+    - reload ufw
+
+  - name: Allow HTTPS
+    ufw: 
+      rule: allow
+      port: "{{ https_port }}"
+      proto: tcp
+    notify:
+    - reload ufw
+
+  - name: Allow MYSQL
+    ufw:
+      rule: allow
+      port: "{{ mysql_port }}"
+      proto: tcp
+    notify: 
+    - reload ufw
+
+  - name: enable ufw service
+    ufw:
+      state: enabled
+
+  - name: Install apache2
+    apt:
+      name: apache2
+      update_cache: yes
+      state: latest
+
+  - name: set timezone
+    timezone:
+      name: Africa/Lagos
+
+  - name: Installing MYSQL packages and dependencies
+    apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    loop:
+      - mysql-server
+      - mysql-client
+      - pip
+      - python3-mysqldb
+      - python3-dev
+      - libmysqlclient-dev
+      - build-essential
+
+  - name: Install software packages for php
+    command: apt install ca-certificates apt-transport-https software-properties-common
+
+  - name: Add repository ppa:ondrej/php
+    apt_repository:
+      repo="ppa:ondrej/php" state=present
+
+  - name: Update the repository
+    apt:
+      update_cache: yes
+
+  - name: Installing php8.1
+    command: apt install php8.1 -y
+
+  - name: Install php packages
+    apt:
+      name: "{{ item }}"
+      update_cache: yes
+      state: present
+    loop:
+      - curl
+      - unzip
+      - libapache2-mod-php
+      - php8.1-mysql
+      - php8.1-common
+      - php8.1-xml
+      - php8.1-xmlrpc
+      - php8.1-curl
+      - php8.1-gd
+      - php8.1-imagick
+      - php8.1-cli
+      - php8.1-dev
+      - php8.1-imap
+      - php8.1-mbstring
+      - php8.1-opcache
+      - php8.1-soap
+      - php8.1-zip
+      - php8.1-intl
+
+  - name: download composer to the current directory
+    command: php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+
+  - name: Verify the installer
+    command: php -r "if (hash_file('sha384', 'composer-setup.php') === '55ce33d7678c5a611085589f1f3ddf8b3c52d662cd01d4ba75c0ee0459970c2200a51f492d557530c71c15d8dba01eae') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+
+  - name: Run the installer
+    command: php composer-setup.php
+
+  - name: Remove the installer
+    command: php -r "unlink('composer-setup.php');"
+
+  - name: Move composer to global path
+    command: sudo mv composer.phar /usr/local/bin/composer
+
+  - name: Install git
+    apt:
+      name: git
+      state: present
+      update_cache: yes
+
+  - name: Creates directory
+    command: mkdir laravel
+    args:
+      chdir: "{{ root_dir }}"
+      creates: laravel
+
+  - name: Clone git repository to the laravel application
+    git:
+      repo: https://github.com/f1amy/laravel-realworld-example-app.git
+      dest: "{{ project_dir }}"
+      clone: yes
+      update: no    
+
+  - name: Setting file permission for laravel-app
+    file:
+      path: "{{ project_dir }}"
+      state: directory
+      mode: 0775
+      owner: "{{ file_owner }}"
+      group: "{{ group }}"
+      recurse: yes
+
+  - name: Setting file permission for storage
+    file:
+      path: "{{ project_dir }}/storage"
+      state: directory
+      mode: 0775
+      owner: "{{ file_owner }}"
+      group: "{{ group }}"
+      recurse: yes
+
+
+  - name: Setting file permission for bootstrap/cache
+    file:
+      path: "{{ project_dir }}/bootstrap/cache"
+      state: directory
+      mode: 0775
+      owner: "{{ file_owner }}"
+      group: "{{ group }}"
+      recurse: yes
+
+  - name: Setting up Apache Virtualhost
+    template: 
+      src: "{{ virtualhost }}"
+      dest: /etc/apache2/sites-available/laravel.conf
+    
+  - name: Enable rewrite module
+    apache2_module:
+      name: rewrite
+      state: present
+      ignore_configcheck: True
+
+  - name: Disable default Apache site
+    apache2_module:
+      state: absent
+      name: autoindex
+      force: True
+    notify: Restart Apache
+
+  
+  - name: Enable Newsite
+    command: a2ensite laravel.conf
+
+  
+  - name: Set up the .env file
+    template:
+      src: "{{ Env }}"
+      dest: "{{ project_dir }}/.env"
+      owner: "{{ file_owner }}"
+      group: "{{ group }}"
+      mode: 0775
+
+  - name: loading contents into .htaccess
+    template:
+      src: "{{ htaccess }}"
+      dest: "{{ project_dir }}/.htaccess"
+      owner: "{{ file_owner }}"
+      group: "{{ group }}"
+      mode: 0775
+
+  - name: loading contents into web.php
+    template:
+      src: "{{ frontend }}"
+      dest: "{{ project_dir }}/routes/web.php"
+      owner: "{{ file_owner }}"
+      group: "{{ group }}"
+      mode: 0775
+
+# Encrypting Https traffic with TSL and SSL security protocol
+
+  - name: Update the repository
+    apt:
+      update_cache: yes
+
+  - name: Install Certbot's Apache package
+    apt:
+      name: python3-certbot-apache
+      state: present
+
+  - name: Generate LetsEncrypt certificates for domains
+    command: certbot --{{ certbot_plugin }} --non-interactive --keep-until-expiring  --renew-with-new-domains --agree-tos --email {{ certbot_mail_address|quote }} --no-eff-email --domains "{{ item }}"
+    with_items: "{{ http_host }}"
+ 
+  - name: Setting Let's encrypt cronjob for certificate autorenewals
+    cron: name=lets_encrypt_renewal special_time=monthly job="/usr/bin/certbot renew"
+    when: ansible_facts['os_family']== "Debian"
+
+# Mysql configuration
+
+  - name: Install PyMysql library
+    pip:
+      name: pymysql
+      state: latest
+
+  - name: Start Mysql service
+    service:
+      name: mysql
+      state: started
+      enabled: yes
+
+  - name: Change the authentication plugin of Mysql root user to mysql_native_password
+    command: mysql -u root -e 'UPDATE mysql.user  SET plugin="mysql_native_password" WHERE user="root" AND host="localhost"'
+
+  - name: Reload all privileges
+    command: mysql -u root -e 'FLUSH PRIVILEGES'
+
+  - name: Set MYSQL root password
+    mysql_user:
+      login_host: 'localhost'
+      login_user: 'root'
+      login_password: ''
+      name: 'root'
+      password: "{{ mysql_root_password }}"
+      state: present
+
+  - name: Remove all anonymous accounts
+    mysql_user:
+      login_user: 'root'
+      login_password: "{{ mysql_root_password }}"
+      name: ''
+      host: localhost
+      state: absent
+
+  - name: Create a database
+    mysql_db:
+      login_user: 'root'
+      login_password: "{{ mysql_root_password }}"
+      name: "{{ db_name }}"
+      state: present
+
+
+  - name: Create Database user
+    mysql_user:
+      login_user: 'root'
+      login_password: "{{ mysql_root_password }}"
+      name: "{{ db_user }}"
+      password: "{{ db_password }}"
+      priv: '{{ db_name }}.*:ALL,GRANT'
+
+  - name: Remove mysql test database
+    mysql_db:
+      login_user: 'root'
+      login_password: "{{ mysql_root_password }}"
+      name: test
+      state: absent
+   
+  - name: Install composer in the project directory
+    command: composer install --no-interaction
+    args:
+      chdir: "{{ project_dir }}"
+
+  - name: Update composer
+    command: composer update --no-interaction
+    args:
+      chdir: "{{ project_dir }}"
+    
+  - name: Generating application key
+    command: "/usr/bin/php {{ project_dir }}/artisan key:generate"
+
+
+  - name: Create Project
+    command: "/usr/bin/php {{ project_dir }}/artisan storage:link"
+ 
+  - name: Migrate seed
+    command: "/usr/bin/php {{ project_dir }}/artisan migrate --seed"
+     
+
+  handlers:
+  - name: reload ufw
+    ufw:
+      state: reloaded
+
+  - name: Restart Apache
+    service:
+      name: apache2
+      state: restarted
+
+  - name: Restart mysql
+    service:
+      name: mysql
+      state: restarted

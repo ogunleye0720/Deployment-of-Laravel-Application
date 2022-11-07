@@ -1,0 +1,20 @@
+---
+- name: Deploy laravel application
+  hosts: webserver
+  remote_user: root
+
+
+  tasks:
+
+  - name: Install packages
+    apt:
+      update_cache: yes
+      state: latest
+      force_apt_get: yes
+
+  - name: Install apache2
+    apt:
+      name: apache2
+      update_cache: yes
+      state: latest
+
