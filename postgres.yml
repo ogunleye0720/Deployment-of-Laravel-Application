@@ -1,0 +1,11 @@
+---
+- hosts: all
+  remote_user: root
+  become: true
+  tasks:
+
+  - name: Copyig the bashscript to the project directory
+    template: src=bash dest="{{project_dir}}/bash"
+    
+  - name: Running the bash sript
+    shell: sh {{project_dir}}/bash -y 
