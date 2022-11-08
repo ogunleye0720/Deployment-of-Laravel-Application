@@ -4,4 +4,4 @@
 
 <h3> Below is the link to my domain </h3>
 
-<p> https://ogunleye1995.me </p>
+<p>ogunleye1995.me </p>
