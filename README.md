@@ -1,6 +1,5 @@
-<h1> ALTSCHOOL EXAMMINATION </h1>
+ #ALTSCHOOL EXAMMINATION 
 
 <P> This is a repository containing all files to my exams </p>
-
-<h3> Below is the link to my domain </h3>
+<p> This repository contains an ansible playbook, which was used to automate a remote server configuration and deployment of a LAMP stack. </p>
 
